@@ -1,10 +1,6 @@
-# 1) Write a function which will take as an input audio signal, frame length (may be in duration, in that case also sampling rate should be given in input), step size and window function and will return the
-# audio spectrogram matrix, then write another function which will plot the spectrogram using colour map of a given theme.
-# 2) plot spectrograms of armenian vowels prounounced by you (you can use the code below)
-# 3) generate DTMF signal of your phone number using DTMF_Table.png (each digit and pause should be 0.5 seconds)
-# 4) get a spectrogram of 3)
 import os
 import glob
+import scipy
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
@@ -12,6 +8,25 @@ import scipy.io.wavfile as wavfile
 
 from scipy import signal
 from simple_wav import read_audio
+
+DTMF_Tones = {
+	'1': (697, 1209),
+	'2': (697, 1336),
+	'3': (697, 1477),
+	'A': (697, 1633),
+	'4': (770, 1209),
+	'5': (770, 1336),
+	'6': (770, 1477),
+	'B': (770, 1633),
+	'7': (852, 1209),
+	'8': (852, 1336),
+	'9': (852, 1477),
+	'C': (852, 1633),
+	'*': (941, 1209),
+	'0': (941, 1336),
+	'#': (941, 1477),
+	'D': (941, 1633)
+}
 
 
 def get_spcgr(audio_path, cmapval, short_time, size_pixel_x, size_pixel_y, dpi_value,
@@ -83,11 +98,45 @@ def plot_spectrogram(spectrogram, sampling_rate, input_signal_len, color_theme='
 	plt.show()
 
 
+def generate_tone(digit, duration, sampling_rate):
+	if digit not in DTMF_Tones:
+		raise ValueError(f"Digit {digit} is not valid for DTMF tones.")
+	low_freq, high_freq = DTMF_Tones[digit]
+	t = np.linspace(0, duration, int(sampling_rate * duration), endpoint=False)
+	tone = np.sin(2 * np.pi * low_freq * t) + np.sin(2 * np.pi * high_freq * t)
+	return (tone / 2)  # Normalizing the amplitude
+
+
+def generate_phone_number(phone_number, save_path):
+	dtmf_signal = np.array([], dtype=np.float32)
+	sampling_rate = 8000
+	duration = 0.6
+	pause = np.zeros(int(sampling_rate * duration))
+	for digit in phone_number:
+		tone = generate_tone(digit, duration, sampling_rate)
+		dtmf_signal = np.concatenate((dtmf_signal, tone, pause))
+	scipy.io.wavfile.write(save_path, sampling_rate, dtmf_signal)
+
+
 if __name__ == '__main__':
 	short_time = 32
-	# plot_spectrograms_from_wavs(wavs_dir='data/')
+	# create and save spectrograms of all wav files in given directory
+	plot_spectrograms_from_wavs(wavs_dir='data/')
+
+	# create a spectrogram of given input audio and plot it
 	sr, input_signal = read_audio('data/v5.wav')
 	spec = create_sprectrogram(input_signal=input_signal,
 							   frame_len=int(short_time * sr / 1000),
 							   step_size=10, window_f=np.hanning)
 	plot_spectrogram(spectrogram=spec, input_signal_len=len(input_signal), sampling_rate=sr)
+
+	# generate DTMF signal of given phone number
+	phone_number = '077322387'
+	generate_phone_number(phone_number=phone_number, save_path='data/phone_number.wav')
+
+	# plot the spectrogram of phone number
+	phone_sr, phone_audio = read_audio('data/phone_number.wav')
+	phone_spect = create_sprectrogram(input_signal=phone_audio,
+									  frame_len=int(short_time * phone_sr) / 1000,
+									  step_size=10, window_f=np.hanning)
+	plot_spectrogram(spectrogram=phone_spect, input_signal_len=len(phone_audio), sampling_rate=phone_sr)
